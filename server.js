@@ -157,6 +157,32 @@ app.post('/payments', async (req, res) => {
   }
 });
 
+// Get all payment history (for all customers)
+app.get('/payments', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT 
+        p.id,
+        p.payment_date,
+        p.payment_amount,
+        p.status,
+        p.account_number,
+        c.customer_name
+      FROM payments p
+      JOIN customers c ON p.customer_id = c.id
+      ORDER BY p.payment_date DESC`
+    );
+    
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Error fetching all payments:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch payment history' 
+    });
+  }
+});
+
 // Get payment history
 app.get('/payments/:account_number', async (req, res) => {
   try {

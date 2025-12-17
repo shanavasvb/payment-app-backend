@@ -34,6 +34,15 @@ const pool = mysql.createPool({
 //  Retrieve all customer loan details
 app.get('/customers', async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // Get total count
+    const [countResult] = await pool.query('SELECT COUNT(*) as total FROM customers');
+    const total = countResult[0].total;
+
+    // Get paginated data
     const [rows] = await pool.query(`
       SELECT 
         account_number,
@@ -45,8 +54,23 @@ app.get('/customers', async (req, res) => {
         total_loan_amount
       FROM customers
       ORDER BY account_number
-    `);
-    res.json({ success: true, data: rows });
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
+
+    const totalPages = Math.ceil(total / limit);
+    const hasMore = page < totalPages;
+
+    res.json({ 
+      success: true, 
+      data: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore
+      }
+    });
   } catch (error) {
     console.error('Error fetching customers:', error);
     res.status(500).json({ success: false, message: 'Failed to fetch customer data' });
@@ -157,9 +181,20 @@ app.post('/payments', async (req, res) => {
   }
 });
 
-// Get all payment history (for all customers)
+// Get all payment history (for all customers) with pagination
 app.get('/payments', async (req, res) => {
   try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = (page - 1) * limit;
+
+    // Get total count
+    const [countResult] = await pool.query(
+      'SELECT COUNT(*) as total FROM payments'
+    );
+    const total = countResult[0].total;
+
+    // Get paginated results
     const [rows] = await pool.query(
       `SELECT 
         p.id,
@@ -170,10 +205,22 @@ app.get('/payments', async (req, res) => {
         c.customer_name
       FROM payments p
       JOIN customers c ON p.customer_id = c.id
-      ORDER BY p.payment_date DESC`
+      ORDER BY p.payment_date DESC
+      LIMIT ? OFFSET ?`,
+      [limit, offset]
     );
     
-    res.json({ success: true, data: rows });
+    res.json({ 
+      success: true, 
+      data: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: offset + rows.length < total
+      }
+    });
   } catch (error) {
     console.error('Error fetching all payments:', error);
     res.status(500).json({ 
